@@ -1,0 +1,7 @@
+#ifndef TASK2_PARAMS_H
+#define TASK2_PARAMS_H
+
+#define FLOWER_COUNT 40
+#define GARDENER_COUNT 2
+
+#endif//TASK2_PARAMS_H
