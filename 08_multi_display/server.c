@@ -25,21 +25,24 @@ int fix_queue_index = 0;
 sem_t queue_sem;
 sem_t queue_space_sem;
 
-int display_socket_fd = -1;
+int display_socket_fd[10] = {-1};
 pthread_mutex_t display_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void display(char *buffer) {
     printf("%s", buffer);
 
     pthread_mutex_lock(&display_mutex);
-    if (display_socket_fd != -1) {
-        if (recv(display_socket_fd, buffer, 0, MSG_DONTWAIT) <= 0 && errno != EAGAIN) {
-            close(display_socket_fd);
-            display_socket_fd = -1;
-        }
-        if (send(display_socket_fd, buffer, strlen(buffer) + 1, MSG_NOSIGNAL) <= 0) {
-            close(display_socket_fd);
-            display_socket_fd = -1;
+    for (int i = 0; i < 10; ++i) {
+        if (display_socket_fd[i] != -1) {
+            if (recv(display_socket_fd[i], buffer, 0, MSG_DONTWAIT) <= 0 && errno != EAGAIN) {
+                close(display_socket_fd[i]);
+                display_socket_fd[i] = -1;
+                continue;
+            }
+            if (send(display_socket_fd[i], buffer, strlen(buffer) + 1, MSG_NOSIGNAL) <= 0) {
+                close(display_socket_fd[i]);
+                display_socket_fd[i] = -1;
+            }
         }
     }
     pthread_mutex_unlock(&display_mutex);
@@ -163,13 +166,20 @@ void *handle_gardener(void *args) {
 void handle_display(int socket_fd) {
     display("Connecting display\n");
 
+    int good = 0;
     pthread_mutex_lock(&display_mutex);
-    if (display_socket_fd == -1) {
-        display_socket_fd = socket_fd;
-    } else {
-        close(socket_fd);
+    for (int i = 0; i < 10; ++i) {
+        if (display_socket_fd[i] == -1) {
+            display_socket_fd[i] = socket_fd;
+            good = 1;
+            break;
+        }
     }
     pthread_mutex_unlock(&display_mutex);
+
+    if (!good) {
+        close(socket_fd);
+    }
 }
 
 int main(int argc, char **argv) {

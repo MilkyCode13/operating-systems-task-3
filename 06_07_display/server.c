@@ -1,9 +1,11 @@
 #include "utils.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -23,6 +25,33 @@ int fix_queue_index = 0;
 sem_t queue_sem;
 sem_t queue_space_sem;
 
+int display_socket_fd = -1;
+pthread_mutex_t display_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void display(char *buffer) {
+    printf("%s", buffer);
+
+    pthread_mutex_lock(&display_mutex);
+    if (display_socket_fd != -1) {
+        if (recv(display_socket_fd, buffer, 0, MSG_DONTWAIT) <= 0 && errno != EAGAIN) {
+            close(display_socket_fd);
+            display_socket_fd = -1;
+        }
+        if (send(display_socket_fd, buffer, strlen(buffer) + 1, MSG_NOSIGNAL) <= 0) {
+            close(display_socket_fd);
+            display_socket_fd = -1;
+        }
+    }
+    pthread_mutex_unlock(&display_mutex);
+}
+
+#define DISPLAY(fmt, ...)                \
+    do {                                 \
+        char _buf[128];                  \
+        sprintf(_buf, fmt, __VA_ARGS__); \
+        display(_buf);                   \
+    } while (0);
+
 void *handle_garden_in(void *args) {
     int client_socket_fd = (int) args;
 
@@ -38,7 +67,7 @@ void *handle_garden_in(void *args) {
 
     pthread_mutex_unlock(&garden_connection_mutex);
 
-    printf("Connected garden in\n");
+    display("Connected garden in\n");
 
     struct message message;
     while (1) {
@@ -54,7 +83,7 @@ void *handle_garden_in(void *args) {
         flowers.flower[message.flower_num] = 1;
         pthread_mutex_unlock(&flower_mutex[message.flower_num]);
 
-        printf("Flower %zu has faded!\n", message.flower_num);
+        DISPLAY("Flower %zu has faded!\n", message.flower_num);
     }
 
     close(client_socket_fd);
@@ -76,7 +105,7 @@ void *handle_garden_out(void *args) {
 
     pthread_mutex_unlock(&garden_connection_mutex);
 
-    printf("Connected garden out\n");
+    display("Connected garden out\n");
 
     struct message message;
     size_t index = 0;
@@ -99,7 +128,7 @@ void *handle_garden_out(void *args) {
 void *handle_gardener(void *args) {
     int client_socket_fd = (int) args;
 
-    printf("Connected gardener\n");
+    display("Connected gardener\n");
 
     struct message message;
     while (1) {
@@ -121,7 +150,7 @@ void *handle_gardener(void *args) {
             sem_post(&queue_sem);
             pthread_mutex_unlock(&queue_mutex);
 
-            printf("Flower %zu has been restored by gardener\n", message.flower_num);
+            DISPLAY("Flower %zu has been restored by gardener\n", message.flower_num);
         }
 
         pthread_mutex_unlock(&flower_mutex[message.flower_num]);
@@ -129,6 +158,18 @@ void *handle_gardener(void *args) {
 
     close(client_socket_fd);
     return NULL;
+}
+
+void handle_display(int socket_fd) {
+    display("Connecting display\n");
+
+    pthread_mutex_lock(&display_mutex);
+    if (display_socket_fd == -1) {
+        display_socket_fd = socket_fd;
+    } else {
+        close(socket_fd);
+    }
+    pthread_mutex_unlock(&display_mutex);
 }
 
 int main(int argc, char **argv) {
@@ -199,6 +240,9 @@ int main(int argc, char **argv) {
                 break;
             case GARDENER_CLIENT:
                 pthread_create(&pthread, NULL, handle_gardener, (void *) client_socket_fd);
+                break;
+            case DISPLAY_CLIENT:
+                handle_display(client_socket_fd);
                 break;
             default:
                 close(client_socket_fd);

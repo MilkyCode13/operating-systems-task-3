@@ -10,3 +10,8 @@ add_executable(04_05_basic_gardener 04_05_basic/gardener.c 04_05_basic/params.h 
 add_executable(06_07_display_server 06_07_display/server.c 06_07_display/params.h 06_07_display/utils.h)
 add_executable(06_07_display_garden 06_07_display/garden.c 06_07_display/params.h 06_07_display/utils.h)
 add_executable(06_07_display_gardener 06_07_display/gardener.c 06_07_display/params.h 06_07_display/utils.h)
+add_executable(06_07_display_display 06_07_display/display.c 06_07_display/utils.h)
+add_executable(08_multi_display_server 08_multi_display/server.c 08_multi_display/params.h 08_multi_display/utils.h)
+add_executable(08_multi_display_garden 08_multi_display/garden.c 08_multi_display/params.h 08_multi_display/utils.h)
+add_executable(08_multi_display_gardener 08_multi_display/gardener.c 08_multi_display/params.h 08_multi_display/utils.h)
+add_executable(08_multi_display_display 08_multi_display/display.c 08_multi_display/utils.h)

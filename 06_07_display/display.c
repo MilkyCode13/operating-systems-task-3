@@ -4,33 +4,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
-void run_gardener(int socket_fd, int flower_count) {
-    pid_t pid = getpid();
-    printf("Gardener %d hi uwu!\n", pid);
-    srandom(time(NULL) ^ (pid << 8));
+int socket_fd;
 
-    struct message message;
+void cleanup() {
+    close(socket_fd);
+}
+
+void run_display() {
     while (1) {
-        for (int i = 0; i < flower_count; ++i) {
-            usleep(random() % 1000000);
-
-            message.flower_num = i;
-            send(socket_fd, &message, sizeof(message), MSG_NOSIGNAL);
-
-            int status;
-            if (recv(socket_fd, &status, sizeof(status), 0) <= 0) {
-                close(socket_fd);
-                return;
-            }
-
-            if (status) {
-                printf("Flower %d has been restored by gardener %d\n", i, pid);
-            }
+        char buffer[128];
+        ssize_t bytes = recv(socket_fd, buffer, sizeof(buffer), 0);
+        if (bytes <= 0) {
+            break;
         }
+
+        printf("%s", buffer);
     }
+    close(socket_fd);
 }
 
 int main(int argc, char **argv) {
@@ -54,16 +47,28 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    int socket_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    connect(socket_fd, (const struct sockaddr *) &server_address, sizeof(server_address));
+    socket_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socket_fd < 0) {
+        perror("socket");
+        close(socket_fd);
+        return 1;
+    }
 
-    int client_type = GARDENER_CLIENT;
+    signal(SIGINT, cleanup);
+
+    if (connect(socket_fd, (const struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+        perror("connect");
+        close(socket_fd);
+        return 1;
+    }
+
+    int client_type = DISPLAY_CLIENT;
     if (send(socket_fd, &client_type, sizeof(client_type), MSG_NOSIGNAL) <= 0) {
         close(socket_fd);
         return 1;
     }
 
-    run_gardener(socket_fd, FLOWER_COUNT);
+    run_display();
 
     return 0;
 }

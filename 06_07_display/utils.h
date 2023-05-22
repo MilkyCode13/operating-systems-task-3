@@ -7,6 +7,7 @@
 #define GARDEN_IN_CLIENT 1
 #define GARDEN_OUT_CLIENT 2
 #define GARDENER_CLIENT 3
+#define DISPLAY_CLIENT 4
 
 struct flowers {
     int flower[FLOWER_COUNT];
